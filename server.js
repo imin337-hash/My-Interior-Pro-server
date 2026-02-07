@@ -112,7 +112,7 @@ const DATA_SHEET = {
 };
 
 // 💎 15 THEME PRESETS (Complete)
-const COMMON_SPECS = { s14: "Hyper-realistic Photo", s15: "Unreal Engine 5.5", s16: "Eye-level", s22: "24mm Std Wide", s18: "--ar 4:3" };
+const COMMON_SPECS = { s14: "Hyper-realistic Photo", s15: "Unreal Engine 5.5", s16: "Eye-level", s22: "24mm Std Wide", s18: "--ar 1:1" };
 
 const THEME_PRESETS = {
     'modern': [{ ...COMMON_SPECS, s3: "1.Residential", s4: "Living Room", s5: "Modern", s6: "Glass Wall", s7: "Polished Concrete", s2: "Open Plan", s24: "Neutral Palette", boost: "Bauhaus, clean lines, functional, no clutter" }],
@@ -194,5 +194,6 @@ app.post('/api/generate', async (req, res) => {
 
     res.json({ result: prompt, remainingCredits: 99 });
 });
+
 
 app.listen(port, () => console.log(`🚀 MY INTERIOR PRO Server running on http://localhost:${port}`));
