@@ -17,7 +17,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 const sbAdmin = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseKey || 'placeholder');
 
-// 🛋️ [DATASET] 인테리어 전용 데이터 (30개 항목 Full)
+// 🛋️ [DATASET] 인테리어 전용 데이터
 const DATA_SHEET = {
     "usage_mapping": {
         "1.Residential": ["Living Room", "Master Bedroom", "Open Kitchen & Dining", "Luxury Bathroom", "Powder Room", "Home Office", "Walk-in Closet", "Entrance Hall", "Kids Room", "Attic Lounge", "Home Bar", "Guest Room"],
@@ -55,7 +55,7 @@ const DATA_SHEET = {
     "motion": ["Still Life", "Long Exposure", "Motion Blur"]
 };
 
-// 📷 [TECH SPECS] 공통 카메라 설정 (누락 방지)
+// 📷 [TECH SPECS] 공통 카메라 설정
 const COMMON_SPECS = {
     s14: "Hyper-realistic Photo", 
     s15: "Unreal Engine 5.5", 
@@ -65,7 +65,7 @@ const COMMON_SPECS = {
     s18: "--ar 4:3 (Traditional)"
 };
 
-// 🏠 [PRESETS] 15개 테마 (Common Specs 포함)
+// 🏠 [PRESETS] 15개 테마
 const THEME_PRESETS = {
     'modern': { ...COMMON_SPECS, s3: "1.Residential", s4: "Living Room", s5: "Modern Minimalist", s6: "White Stucco", s7: "Polished Concrete", s24: "Monochromatic Grey", boost: "clean lines, bauhaus inspiration, functional, luxury photography" },
     'contemporary': { ...COMMON_SPECS, s3: "1.Residential", s4: "Living Room", s5: "Contemporary", s23: "Curved Velvet Sofa", s24: "Deep Green & Gold", s17: "Dramatic Chiaroscuro", boost: "fluid curves, trendy sculptural furniture, bold accents, vogue living style" },
@@ -92,29 +92,68 @@ app.get('/api/data', (req, res) => res.json({ dataSheet: DATA_SHEET }));
 // 2. 프리셋
 app.get('/api/preset/:key', (req, res) => res.json(THEME_PRESETS[req.params.key] || {}));
 
-// 3. 결제 처리 (크레딧 & 유효기간 업데이트)
+// 3. [FIXED] 결제 및 충전 (My Architect 로직 적용)
 app.post('/api/charge-success', async (req, res) => {
-    const { userId, creditsToAdd, daysToAdd } = req.body;
-    try {
-        const { data: profile } = await sbAdmin.from('profiles').select('*').eq('id', userId).single();
-        let newExp = new Date();
-        
-        // 기존 유효기간이 남아있다면 거기서 연장
-        if (profile?.valid_until && new Date(profile.valid_until) > new Date()) {
-            newExp = new Date(profile.valid_until);
-        }
-        newExp.setDate(newExp.getDate() + (daysToAdd || 30));
+    const { userId, amount, creditsToAdd, daysToAdd } = req.body;
 
+    if (!userId) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    try {
+        // 1. 현재 유저 정보 가져오기
+        const { data: profile, error: fetchError } = await sbAdmin
+            .from('profiles')
+            .select('credits, valid_until')
+            .eq('id', userId)
+            .single();
+
+        let currentCredits = 0;
+        let currentExpiry = null;
+
+        // 프로필이 없으면 생성 (Upsert)
+        if (fetchError || !profile) {
+            console.log("Creating new profile for:", userId);
+            const { error: insertError } = await sbAdmin.from('profiles').upsert([{ id: userId, credits: 0 }]);
+            if(insertError) throw insertError;
+        } else {
+            currentCredits = profile.credits || 0;
+            currentExpiry = profile.valid_until;
+        }
+
+        // 2. 크레딧 계산
+        const addedCredits = creditsToAdd ? parseInt(creditsToAdd) : (amount ? Math.floor(amount / 20) : 0);
+        const newCredits = currentCredits + addedCredits;
+
+        // 3. 유효기간 계산
+        const addedDays = daysToAdd ? parseInt(daysToAdd) : 30;
+        let newExpiryDate = new Date();
+
+        if (currentExpiry) {
+            const currentExpiryDate = new Date(currentExpiry);
+            // 남아있으면 거기서 연장
+            if (currentExpiryDate > new Date()) {
+                newExpiryDate = currentExpiryDate;
+            }
+        }
+        newExpiryDate.setDate(newExpiryDate.getDate() + addedDays);
+
+        // 4. DB 업데이트
         await sbAdmin.from('profiles').upsert({ 
             id: userId, 
-            credits: (profile?.credits || 0) + (creditsToAdd || 100), 
-            valid_until: newExp.toISOString() 
+            credits: newCredits, 
+            valid_until: newExpiryDate.toISOString() 
         });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        
+        console.log(`✅ Charged: User ${userId} (+${addedCredits} Cr)`);
+        res.json({ success: true, newCredits, newExpiry: newExpiryDate });
+    } catch (e) { 
+        console.error(e);
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
-// 4. 생성 엔진 (유효기간 & 크레딧 검증 포함)
+// 4. [FIXED] 생성 엔진 (My Architect 로직 적용)
 app.post('/api/generate', async (req, res) => {
     const { choices, userId } = req.body;
 
@@ -125,21 +164,38 @@ app.post('/api/generate', async (req, res) => {
 
     // 회원 검증
     try {
-        const { data: user } = await sbAdmin.from('profiles').select('*').eq('id', userId).single();
+        const { data: user, error: fetchError } = await sbAdmin
+            .from('profiles')
+            .select('credits, valid_until')
+            .eq('id', userId)
+            .single();
         
-        if (!user) return res.status(404).json({ error: "User not found" });
-        if (user.valid_until && new Date(user.valid_until) < new Date()) {
-            return res.status(403).json({ error: "Membership expired. Please Upgrade." });
+        // 프로필이 없을 경우 (첫 로그인 직후 등)
+        if (fetchError || !user) {
+             return res.status(404).json({ error: "User profile not found. Please try refreshing or charging." });
         }
+
+        // 유효기간 체크
+        if (user.valid_until && new Date(user.valid_until) < new Date()) {
+            return res.status(403).json({ error: "Membership Expired. Please Upgrade." });
+        }
+        
+        // 크레딧 체크
         if (user.credits < 1) {
-            return res.status(403).json({ error: "No credits remaining." });
+            return res.status(403).json({ error: "No credits remaining. Please Upgrade." });
         }
 
         // 차감 실행
-        await sbAdmin.from('profiles').update({ credits: user.credits - 1 }).eq('id', userId);
+        const newCreditBalance = user.credits - 1;
+        await sbAdmin.from('profiles').update({ credits: newCreditBalance }).eq('id', userId);
         
-        res.json({ result: generatePrompt(choices), remainingCredits: user.credits - 1 });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        console.log(`✂️ Generated: User ${userId} (${user.credits} -> ${newCreditBalance})`);
+        res.json({ result: generatePrompt(choices), remainingCredits: newCreditBalance });
+
+    } catch (e) { 
+        console.error(e);
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
 function generatePrompt(c) {
