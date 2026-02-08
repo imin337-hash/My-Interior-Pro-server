@@ -8,13 +8,12 @@ app.use(cors());
 app.use(express.json());
 
 // 🔐 [SECURITY] Supabase 설정
-// Render의 Environment Variables에 설정된 값을 가져오거나, 없으면 placeholder 사용
 const supabaseUrl = process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder';
 const sbAdmin = createClient(supabaseUrl, supabaseKey);
 
 // ==========================================================================
-// 1. DATA_SHEET (한영 병기 데이터셋)
+// 1. DATA_SHEET (한영 병기 데이터셋) - 기존 유지
 // ==========================================================================
 const DATA_SHEET = {
     // A. CONTEXT (건물 및 뷰)
@@ -124,39 +123,25 @@ const DATA_SHEET = {
 };
 
 // ==========================================================================
-// 2. THEME PRESETS (15가지 테마 - 한영 병기 값으로 업데이트됨)
+// 2. THEME PRESETS (15가지 테마)
 // ==========================================================================
 const COMMON_SPECS = { s14: "Hyper-realistic Photo (극사실 사진)", s15: "Unreal Engine 5.5", s16: "Eye-level (눈높이)", s22: "24mm Std Wide (광각)", s18: "--ar 4:3 (Standard)" };
 
 const THEME_PRESETS = {
     'modern': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Living Room (거실)", s5: "Modern (모던)", s6: "Glass Wall (유리벽)", s7: "Polished Concrete (폴리싱 콘크리트)", s2: "Open Plan (오픈 플랜)", s24: "Neutral Palette (중성적 색채)", boost: "Bauhaus, clean lines, functional, no clutter" }],
-    
     'contemporary': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Living Room (거실)", s5: "Contemporary (컨템포러리)", s6: "Natural Stone (천연석)", s7: "Wide Plank Oak (광폭 원목마루)", s23: "Curved Velvet Sofa (벨벳 곡선 소파)", s24: "Bold Contrast (강한 대비)", boost: "fluid curves, trendy, sculptural, current fashion" }],
-    
     'minimal': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Master Bedroom (안방)", s5: "Minimalist (미니멀리즘)", s6: "White Plaster (화이트 미장)", s7: "Microcement (마이크로 시멘트)", s25: "Minimal Objects (미니멀 오브제)", s24: "All White (올 화이트)", boost: "negative space, zen, clutter-free, essentialism" }],
-    
     'industrial': [{ ...COMMON_SPECS, s3: "2.Commercial (상업)", s4: "Hip Cafe (힙한 카페)", s5: "Industrial (인더스트리얼)", s6: "Exposed Concrete (노출 콘크리트)", s7: "Epoxy (에폭시)", s8: "Industrial Pipes (노출 배관)", s23: "Steel Tube Furniture (스틸 파이프 가구)", boost: "loft style, raw texture, brooklyn, rusted metal" }],
-    
     'midcentury': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Home Office (서재)", s5: "Mid-Century Modern (미드센추리 모던)", s6: "Walnut Wood Paneling (월넛 우드 패널)", s7: "Dark Walnut Floor (월넛 마루)", s23: "Eames Lounge Chair (임스 라운지 체어)", s24: "Deep Green & Gold (딥 그린 & 골드)", boost: "vintage, mad men style, organic curves, 1950s" }],
-    
     'scandi': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Open Kitchen & Dining (대면형 주방)", s5: "Scandinavian (북유럽/스칸디나비안)", s6: "White Painted Brick (화이트 파벽돌)", s7: "Herringbone Parquet (헤링본 마루)", s19: "Monstera Plant (몬스테라)", s24: "Warm Beige & Cream (웜 베이지 & 크림)", boost: "hygge, cozy, bright, natural light, functional" }],
-    
     'traditional': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Library (도서관)", s5: "Traditional (트래디셔널)", s6: "Wainscoting (웨인스코팅)", s7: "Dark Walnut Floor (월넛 마루)", s23: "Leather Chesterfield (체스터필드 소파)", s24: "Burgundy & Brass (버건디 & 브라스)", boost: "classic, symmetry, luxury, molding, dignity" }],
-    
     'transitional': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Living Room (거실)", s5: "Transitional (트랜지셔널)", s6: "Patterned Wallpaper (패턴 벽지)", s7: "Wide Plank Oak (광폭 원목마루)", s23: "Modular Low Sofa (모듈 소파)", s24: "Greige Tone (그레이지)", boost: "refined, elegant, comfort, balance of old and new" }],
-    
     'artdeco': [{ ...COMMON_SPECS, s3: "4.Hospitality (호텔/문화)", s4: "Hotel Lobby (호텔 로비)", s5: "Art Deco (아르 데코)", s6: "Marble Slab (대리석 슬랩)", s7: "Black Marble (블랙 대리석)", s10: "Crystal Chandelier (크리스탈 샹들리에)", s24: "Black & White (블랙 앤 화이트)", boost: "glamour, geometric patterns, gold accents, great gatsby" }],
-    
     'french': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Open Kitchen & Dining (대면형 주방)", s5: "French Country (프렌치 컨트리)", s6: "Venetian Plaster (베네치안 플라스터)", s7: "Travertine Tile (트래버틴 타일)", s25: "Dried Flowers (드라이 플라워)", s24: "Pastel Tones (파스텔 톤)", boost: "rustic elegance, provence, romantic, soft curves" }],
-    
     'rustic': [{ ...COMMON_SPECS, s3: "5.Special (특수)", s4: "Wine Cellar (와인 저장고)", s5: "Rustic (러스틱)", s6: "Natural Stone (천연석)", s7: "Herringbone Parquet (헤링본 마루)", s8: "Wooden Beams (목재 빔/서까래)", s24: "Earthy Terracotta (얼씨 테라코타)", boost: "primitive, raw nature, cozy cabin, unrefined" }],
-    
     'boho': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Master Bedroom (안방)", s5: "Bohemian (보헤미안)", s6: "Patterned Wallpaper (패턴 벽지)", s7: "Sisal Rug (사이잘 러그)", s23: "Rattan Furniture (라탄 가구)", s24: "Vibrant Pop Colors (비비드 팝 컬러)", boost: "eclectic, plants, layered textures, free spirit" }],
-    
     'coastal': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Living Room (거실)", s5: "Coastal Hamptons (코스탈 햄튼)", s6: "White Plaster (화이트 미장)", s7: "Wide Plank Oak (광폭 원목마루)", s20: "Linen Drapes (린넨 커튼)", s24: "Navy Blue & Wood (네이비 & 우드)", boost: "beach house, airy, relaxed luxury, breeezy" }],
-    
     'japandi': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Living Room (거실)", s5: "Japandi (자판디)", s6: "Tambour Board (템바보드)", s7: "Microcement (마이크로 시멘트)", s23: "Modular Low Sofa (모듈 소파)", s24: "Warm Beige & Cream (웜 베이지 & 크림)", boost: "wabi-sabi, warm minimalism, wood & stone, meditation" }],
-    
     'hollywood': [{ ...COMMON_SPECS, s3: "1.Residential (주거)", s4: "Walk-in Closet (드레스룸)", s5: "Hollywood Regency (할리우드 리젠시)", s6: "Mirror Wall (거울벽)", s7: "White Marble (화이트 대리석)", s23: "Curved Velvet Sofa (벨벳 곡선 소파)", s24: "Vibrant Pop Colors (비비드 팝 컬러)", boost: "opulence, glam, high gloss, drama, cinema" }]
 };
 
@@ -171,7 +156,6 @@ app.get('/api/data', (req, res) => res.json({ dataSheet: DATA_SHEET }));
 app.get('/api/preset/:themeKey', (req, res) => {
     const presets = THEME_PRESETS[req.params.themeKey];
     if (presets && presets.length > 0) {
-        // 프리셋 중 랜덤으로 하나 선택
         const choice = presets[Math.floor(Math.random() * presets.length)];
         res.json(choice);
     } else {
@@ -179,35 +163,63 @@ app.get('/api/preset/:themeKey', (req, res) => {
     }
 });
 
-// 💳 [결제 시스템] 크레딧 충전
+// 💳 [결제 시스템] 크레딧 충전 및 유효기간 연장 (NEW)
 app.post('/api/charge-success', async (req, res) => {
-    const { userId, amount } = req.body;
+    // creditsToAdd: 충전할 크레딧 (100 or 1000)
+    // daysToAdd: 연장할 기간 (30일)
+    const { userId, amount, creditsToAdd, daysToAdd } = req.body;
+    
     if (!userId || !amount) {
         return res.status(400).json({ error: "필수 정보가 누락되었습니다." });
     }
 
     try {
-        const { data: profile } = await sbAdmin.from('profiles').select('credits').eq('id', userId).single();
-        let currentCredits = profile ? profile.credits : 0;
+        // 1. 프로필 조회
+        const { data: profile, error: fetchError } = await sbAdmin
+            .from('profiles')
+            .select('credits, valid_until')
+            .eq('id', userId)
+            .single();
         
-        if (!profile) {
+        // 프로필이 없으면 생성
+        if (fetchError || !profile) {
             const { error: insertError } = await sbAdmin.from('profiles').upsert([{ id: userId, credits: 0 }]);
             if(insertError) throw insertError;
         }
 
-        // 충전 로직: 3,000원 = 100크레딧 (비율 조정 가능)
-        const addCredits = Math.floor(amount / 30); 
-        const newCredits = currentCredits + addCredits;
+        const currentCredits = profile ? profile.credits : 0;
+        const currentExpiry = profile ? profile.valid_until : null;
 
+        // 2. 크레딧 추가
+        const addedCredits = creditsToAdd ? parseInt(creditsToAdd) : Math.floor(amount / 30);
+        const newCredits = currentCredits + addedCredits;
+
+        // 3. 유효기간 연장
+        const addedDays = daysToAdd ? parseInt(daysToAdd) : 30; 
+        let newExpiryDate = new Date();
+
+        if (currentExpiry) {
+            const currentExpiryDate = new Date(currentExpiry);
+            // 만료일이 아직 남았다면 거기서 연장, 지났다면 오늘부터 연장
+            if (currentExpiryDate > new Date()) {
+                newExpiryDate = currentExpiryDate;
+            }
+        }
+        newExpiryDate.setDate(newExpiryDate.getDate() + addedDays);
+
+        // 4. DB 업데이트
         const { error: updateError } = await sbAdmin
             .from('profiles')
-            .update({ credits: newCredits })
+            .update({ 
+                credits: newCredits,
+                valid_until: newExpiryDate.toISOString() 
+            })
             .eq('id', userId);
 
         if (updateError) throw updateError;
 
-        console.log(`✅ [Charge] User ${userId}: +${addCredits} (Total: ${newCredits})`);
-        res.json({ success: true, newCredits });
+        console.log(`✅ [Charge] User ${userId}: +${addedCredits} Cr, +${addedDays} Days`);
+        res.json({ success: true, newCredits, newExpiry: newExpiryDate });
 
     } catch (err) {
         console.error("Charge Error:", err);
@@ -215,7 +227,7 @@ app.post('/api/charge-success', async (req, res) => {
     }
 });
 
-// 🍌 [생성 엔진] 프롬프트 생성 및 크레딧 차감
+// 🍌 [생성 엔진] 프롬프트 생성 및 크레딧 차감 (유효기간 체크 포함)
 app.post('/api/generate', async (req, res) => {
     const { choices, themeBoost, userId } = req.body;
 
@@ -229,14 +241,23 @@ app.post('/api/generate', async (req, res) => {
     try {
         const { data: userProfile, error: fetchError } = await sbAdmin
             .from('profiles')
-            .select('credits')
+            .select('credits, valid_until')
             .eq('id', userId)
             .single();
 
         if (fetchError || !userProfile) {
             return res.status(404).json({ error: "사용자 정보를 찾을 수 없습니다." });
         }
+
+        // [New] 유효기간 체크
+        if (userProfile.valid_until) {
+            const expiryDate = new Date(userProfile.valid_until);
+            if (expiryDate < new Date()) {
+                return res.status(403).json({ error: "멤버십이 만료되었습니다. 연장 후 이용해주세요!" });
+            }
+        }
         
+        // 크레딧 체크
         if (userProfile.credits < 1) {
             return res.status(403).json({ error: "크레딧이 부족합니다. 충전 후 이용해주세요!" });
         }
@@ -261,12 +282,10 @@ app.post('/api/generate', async (req, res) => {
 });
 
 // 📝 [Helper] Nano Banana Optimized Prompt Builder
-// 🔥 중요: 프롬프트 생성 시에는 한글 설명을 제거하고 영어만 남깁니다.
 function generateInteriorPrompt(choices, themeBoost) {
-    // 괄호와 그 안의 내용(한글)을 제거하는 정규식 적용
     const getV = (k) => choices[k] ? choices[k].replace(/\([^)]*\)/g, "").trim() : "";
 
-    // 1. Main Subject & Context (서술형 문장)
+    // 1. Main Subject & Context
     const style = getV('s5') || "Modern";
     const room = getV('s4') || getV('s3') || "Interior Space";
     const context = getV('s0') ? `situated within a ${getV('s0')}` : "";
@@ -296,7 +315,7 @@ function generateInteriorPrompt(choices, themeBoost) {
         prompt += ` Decor highlights include ${decorItems.join(', ')}.`;
     }
 
-    // 5. Lighting & Atmosphere (Crucial for Mood)
+    // 5. Lighting & Atmosphere
     prompt += ` The atmosphere is **${getV('s11') || "inviting"}**, illuminated by ${getV('s10') || "ambient lighting"} creating ${getV('s17') || "soft shadows"}.`;
     if(getV('s9')) prompt += ` The time setting is ${getV('s9')}.`;
 
